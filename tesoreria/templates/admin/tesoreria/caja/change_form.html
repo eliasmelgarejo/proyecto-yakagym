@@ -1,0 +1,24 @@
+{% extends "admin/change_form.html" %}
+{% load i18n admin_urls %}
+
+{% block object-tools-items %}
+    {{ block.super }}
+    {# Botones de acción personalizados como enlaces a las vistas correctas #}
+    {% if original %}
+        {% if original.estado == 'ABIERTA' %}
+            <li><a href="{% url 'admin:tesoreria_caja_cerrar' original.pk %}" class="historylink">{% trans "Cerrar Caja" %}</a></li>
+        {% elif original.estado == 'CERRADA' %}
+            <li><a href="{% url 'admin:tesoreria_caja_contabilizar' original.pk %}" class="historylink">{% trans "Contabilizar Caja" %}</a></li>
+        {% elif original.estado == 'CONTABILIZADA' %}
+            <li><a href="{% url 'admin:tesoreria_caja_reabrir' original.pk %}" class="historylink">{% trans "Reabrir Caja" %}</a></li>
+        {% endif %}
+    {% endif %}
+{% endblock %}
+
+{% block submit_buttons_bottom %}
+    {# Ocultamos los botones de Guardar/Eliminar para una caja ya existente #}
+    {# La gestión se hace a través de los botones de acción de arriba #}
+    {% if not original %}
+        {{ block.super }}
+    {% endif %}
+{% endblock %}

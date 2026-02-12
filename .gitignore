@@ -1,0 +1,40 @@
+# Archivos de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Entorno virtual
+.venv/
+env/
+venv/
+*.egg-info/
+.coverage
+.pytest_cache/
+
+# Base de datos
+db.sqlite3
+*.db
+
+# Archivos de IDEs
+.idea/
+.vscode/
+
+# Logs
+*.log
+logs/
+
+# Archivos de sistema operativo
+.DS_Store
+Thumbs.db
+
+# Archivos de configuración de Django
+# No subir settings_local.py si contiene información sensible
+# Por ahora, no lo incluyo ya que settings.py puede contener configuraciones no sensibles
+
+# Dependencias de Node.js (si aplica)
+node_modules/
+
+# Archivos generados
+staticfiles/
+media/

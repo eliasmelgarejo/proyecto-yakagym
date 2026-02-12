@@ -1,0 +1,46 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+    &rsaquo; {% translate 'Dashboard Personalizado' %}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <div class="module" id="members-expiring-soon-module">
+        <h2>{% translate "Miembros Próximos a Vencer" %} (Rango: {{ expiration_range_days }})</h2>
+        {% if members_expiring_soon %}
+        <div class="changelist-form-container">
+            <table id="result_list" class="striped">
+                <thead>
+                    <tr>
+                        <th>{% translate "Miembro" %}</th>
+                        <th>{% translate "Estado" %}</th>
+                        <th>{% translate "Vencimiento" %}</th>
+                        <th>{% translate "Acción" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for member in members_expiring_soon %}
+                    <tr class="{% cycle 'row1' 'row2' %}">
+                        <td><a href="{% url 'admin:miembros_miembro_change' member.pk %}">{{ member.nombre }} {{ member.apellido }} ({{ member.ci }})</a></td>
+                        <td>{{ member.estado }}</td>
+                        <td>{{ member.max_vencimiento|date:"d M Y" }}</td>
+                        <td>
+                            <a href="{% url 'admin:miembros_miembro_change' member.pk %}" class="button">{% translate "Ver Detalles" %}</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p>{% translate "No hay miembros con membresías próximas a vencer en el rango seleccionado." %}</p>
+        {% endif %}
+    </div>
+    {# You can add more modules/content here for your custom dashboard #}
+</div>
+{% endblock %}

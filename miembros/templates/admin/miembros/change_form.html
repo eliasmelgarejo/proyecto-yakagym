@@ -1,0 +1,24 @@
+{% extends "admin/change_form.html" %}
+{% load i18n admin_urls %}
+
+{% block object-tools-items %}
+    {{ block.super }}
+    {% if not original and not is_popup %}
+        {# We are adding a new object, default Django buttons are fine #}
+    {% else %}
+        {% if is_read_only_mode and opts.model_name != 'transaccion' and opts.model_name != 'membresia' %}
+            <li>
+                {% url opts|admin_urlname:'change' original.pk as change_url %}
+                <a href="{% add_preserved_filters change_url %}?edit=1" class="historylink">{% trans "Editar" %}</a>
+            </li>
+        {% endif %}
+    {% endif %}
+{% endblock %}
+
+
+{% block submit_buttons_bottom %}
+    {# Show save/delete buttons only in edit mode or when adding new object #}
+    {% if request.GET.edit or not original %}
+        {{ block.super }}
+    {% endif %}
+{% endblock %}
