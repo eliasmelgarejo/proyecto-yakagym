@@ -1,4 +1,6 @@
+import json
 from django.contrib import admin
+from django import forms
 from django import forms
 from django.urls import reverse, path
 from django.utils.html import format_html
@@ -9,7 +11,8 @@ from django.shortcuts import render
 from django.http import HttpResponseRedirect
 from django.contrib import messages
 
-from .models import Caja, Transaccion, DetalleTransaccion
+from .models import Caja, Transaccion, DetalleTransaccion, DetalleTransaccionProducto
+from inventario.models import Producto
 from miembros.admin import YakaGymAdmin
 
 
@@ -36,6 +39,46 @@ class DetalleTransaccionInline(admin.TabularInline):
         return obj is None
 
     def has_delete_permission(self, request, obj=None):
+        return obj is None
+
+
+# Custom form for DetalleTransaccionProductoInline to hide related object icons
+class DetalleTransaccionProductoForm(forms.ModelForm):
+    class Meta:
+        model = DetalleTransaccionProducto
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if 'producto' in self.fields:
+            # Hide the Add, Change, Delete related object icons
+            self.fields['producto'].widget.can_add_related = False
+            self.fields['producto'].widget.can_change_related = False
+            self.fields['producto'].widget.can_delete_related = False
+            self.fields['producto'].widget.can_view_related = False
+
+
+class DetalleTransaccionProductoInline(admin.TabularInline):
+    model = DetalleTransaccionProducto
+    extra = 1 # Show 1 empty form by default
+    fields = ('producto', 'cantidad', 'precio_unitario_venta', 'sub_total')
+    readonly_fields = () # Estos son calculados o establecidos por save()
+    form = DetalleTransaccionProductoForm # Assign the custom form
+
+    def get_readonly_fields(self, request, obj=None):
+        # Para nuevas transacciones (obj is None), estos campos deben ser actualizados por JS.
+        # Por lo tanto, no deben ser readonly aquí.
+        if obj is None:
+            return []
+        # Una vez que la transacción existe, todos los campos deben ser de solo lectura.
+        return [field.name for field in self.model._meta.fields if field.name != 'id']
+
+    def has_add_permission(self, request, obj=None):
+        # Only allow adding new product details if the transaction is new
+        return obj is None
+
+    def has_delete_permission(self, request, obj=None):
+        # Only allow deleting product details if the transaction is new
         return obj is None
 
 
@@ -163,18 +206,54 @@ class TransaccionAdmin(YakaGymAdmin):
     list_display = ('id', 'caja', 'usuario', 'miembro', 'tipo', 'monto_total', 'fecha_hora')
     list_filter = ('tipo', 'caja', 'usuario', 'miembro')
     search_fields = ('miembro__nombre', 'miembro__apellido', 'caja__usuario__username')
-    inlines = [DetalleTransaccionInline]
+    
+    def get_inlines(self, request, obj=None):
+        inlines_to_show = []
 
+        # For new transactions, or if obj is None (add form)
+        # or if it's an existing PRODUCTO transaction, show product inline
+        if obj is None or (obj and obj.tipo == Transaccion.TIPO_PRODUCTO):
+            inlines_to_show.append(DetalleTransaccionProductoInline)
+        
+        # Always show payment details for all transaction types
+        inlines_to_show.append(DetalleTransaccionInline)
+        
+        return inlines_to_show
+    
     class Media:
         js = ('tesoreria/js/transaccion_total.js',)
+
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        extra_context = extra_context or {}
+        
+        # Obtener todos los productos y sus precios
+        productos = Producto.objects.all()
+        product_prices = {str(p.id): str(p.precio_venta) for p in productos}
+        product_prices_json = json.dumps(product_prices)
+        print("DEBUG: product_prices (Python dict):", product_prices)
+        print("DEBUG: product_prices_json (JSON string):", product_prices_json)
+        extra_context['product_prices_json'] = product_prices_json
+        
+        return super().change_view(request, object_id, form_url, extra_context=extra_context)
 
     def get_fieldsets(self, request, obj=None):
         if obj is None: # Formulario de Creación
             return (
-                (None, {'fields': ('tipo', 'miembro', 'observacion', 'monto_total_visual', 'monto_total')}),
+                (None, {'fields': ('tipo', 'observacion', 'monto_total_visual', 'monto_total')}),
             )
-        # Para vistas de detalle/edición, la clase base YakaGymAdmin se encarga
-        return super().get_fieldsets(request, obj)
+        else: # Para vistas de detalle/edición de una transacción existente
+            if obj.tipo == Transaccion.TIPO_MEMBRESIA:
+                return (
+                    (None, {'fields': ('tipo', 'miembro', 'observacion', 'monto_total_visual', 'monto_total')}),
+                )
+            elif obj.tipo == Transaccion.TIPO_PRODUCTO:
+                return (
+                    (None, {'fields': ('tipo', 'observacion', 'monto_total_visual', 'monto_total')}),
+                )
+            # Default for other types
+            return (
+                (None, {'fields': ('tipo', 'observacion', 'monto_total_visual', 'monto_total')}),
+            )
 
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
@@ -187,6 +266,13 @@ class TransaccionAdmin(YakaGymAdmin):
         # Solo en la vista de creación, convertimos monto_total a un campo oculto
         if obj is None and 'monto_total' in form.base_fields:
             form.base_fields['monto_total'].widget = forms.HiddenInput()
+        
+        # Conditionally hide 'miembro' field if transaction type is not MEMBRESIA or other member-related
+        if obj is None or obj.tipo not in [Transaccion.TIPO_MEMBRESIA, Transaccion.TIPO_INGRESO_VARIO]: # Assuming only MEMBRESIA and some INGRESO_VARIO are member-related
+            if 'miembro' in form.base_fields:
+                form.base_fields['miembro'].required = False # Make it not required
+                form.base_fields['miembro'].widget = forms.HiddenInput() # Hide it
+        
         return form
 
     def get_readonly_fields(self, request, obj=None):
@@ -222,11 +308,16 @@ class TransaccionAdmin(YakaGymAdmin):
         return True # Se puede eliminar si aún no se ha guardado (no obj.pk)
 
     def save_model(self, request, obj, form, change):
-        if not change:
+        if not change: # Creating a new object
             try:
                 caja_abierta = Caja.objects.get(usuario=request.user, estado=Caja.ESTADO_ABIERTA)
                 obj.caja = caja_abierta
                 obj.usuario = request.user
+                
+                # If transaction type is not MEMBRESIA, ensure miembro is None
+                # As miembro field might not be shown or required in form
+                if obj.tipo != Transaccion.TIPO_MEMBRESIA:
+                    obj.miembro = None # Ensure it's explicitly null if not a membership
             except Caja.DoesNotExist:
                 messages.error(request, "Acción no permitida: No tienes una caja abierta para registrar esta transacción.")
                 return 
@@ -239,14 +330,33 @@ class TransaccionAdmin(YakaGymAdmin):
         instance = form.instance
         if not instance.pk: return
 
-        instance.refresh_from_db()
-        total_calculado = instance.detalles.aggregate(total_monto=Sum('monto'))['total_monto'] or 0
-        
-        if total_calculado <= 0:
-            messages.error(request, "La transacción no puede tener un monto total de cero o negativo. Por favor, corrija los detalles.")
+        # Recalcular monto_total de la Transaccion
+        instance.refresh_from_db() # Ensure instance is up-to-date
+
+        total_productos = 0
+        if hasattr(instance, 'detalles_productos'): # Check if details_productos exists
+            for dp in instance.detalles_productos.all():
+                total_productos += dp.sub_total
+                # Decrement stock on product sale
+                if not change: # Only decrement stock when creating a new transaction
+                    dp.producto.stock -= dp.cantidad
+                    dp.producto.save()
+
+        total_pagos = instance.detalles.aggregate(total_monto=Sum('monto'))['total_monto'] or 0
+
+        total_calculado = total_productos + total_pagos
+
+        if total_calculado <= 0 and instance.tipo == Transaccion.TIPO_PRODUCTO: # For product sales, total cannot be zero
+            messages.error(request, "La transacción de productos no puede tener un monto total de cero o negativo. Por favor, corrija los detalles de los productos o pagos.")
+            # Consider rolling back or deleting the instance if the total is invalid for product sales
             if not change:
                 instance.delete()
             return
-
+        elif total_calculado <= 0 and instance.tipo == Transaccion.TIPO_MEMBRESIA: # Similar check for memberships
+            messages.error(request, "La transacción de membresía no puede tener un monto total de cero o negativo. Por favor, corrija los detalles de la membresía o pagos.")
+            if not change:
+                instance.delete()
+            return
+        
         instance.monto_total = total_calculado
         instance.save()

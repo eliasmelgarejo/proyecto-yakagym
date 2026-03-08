@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'miembros.apps.MiembrosConfig',
     'tesoreria.apps.TesoreriaConfig',
     'dashboard.apps.DashboardConfig',
+    'inventario.apps.InventarioConfig',
 ]
 
 MIDDLEWARE = [

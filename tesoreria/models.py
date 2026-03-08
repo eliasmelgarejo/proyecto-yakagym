@@ -3,6 +3,9 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from django.db.models import Sum
 
+from miembros.models import Miembro
+from inventario.models import Producto
+
 
 class Caja(models.Model):
     ESTADO_ABIERTA = 'ABIERTA'
@@ -126,3 +129,28 @@ class DetalleTransaccion(models.Model):
 
     def __str__(self):
         return f"Detalle de {self.transaccion.id}: {self.monto} en {self.get_metodo_pago_display()}"
+
+class DetalleTransaccionProducto(models.Model):
+    transaccion = models.ForeignKey(Transaccion, on_delete=models.CASCADE, related_name='detalles_productos')
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT, verbose_name="Producto")
+    cantidad = models.IntegerField(default=1, verbose_name="Cantidad")
+    precio_unitario_venta = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Precio Unitario de Venta")
+    sub_total = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Sub Total") # Nuevo campo
+
+    class Meta:
+        verbose_name = "Detalle de Transacción (Producto)"
+        verbose_name_plural = "Detalles de Transacciones (Productos)"
+        unique_together = ('transaccion', 'producto') # Un producto solo puede aparecer una vez por transacción
+
+    def __str__(self):
+        return f"{self.cantidad} x {self.producto.codigo} en Transacción #{self.transaccion.id}"
+
+    def save(self, *args, **kwargs):
+        # Establecer el precio en el momento de la venta
+        if not self.precio_unitario_venta:
+            self.precio_unitario_venta = self.producto.precio_venta
+
+        # Calcular sub_total
+        self.sub_total = self.cantidad * self.precio_unitario_venta
+
+        super().save(*args, **kwargs)
