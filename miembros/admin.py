@@ -195,7 +195,7 @@ class DisciplinaAdmin(YakaGymAdmin):
 
 @admin.register(Membresia)
 class MembresiaAdmin(YakaGymAdmin):
-    list_display = ('miembro', 'disciplina', 'tipo', 'fecha_inicio', 'fecha_vencimiento', 'monto_pagado', 'transaccion')
+    list_display = ('miembro', 'disciplina', 'tipo', 'fecha_inicio', 'fecha_vencimiento', 'metodo_pago', 'monto_pagado', 'transaccion')
     search_fields = ('miembro__nombre', 'miembro__apellido', 'disciplina__nombre', 'tipo')
     list_filter = ('disciplina', 'tipo', 'fecha_vencimiento')
 
@@ -245,7 +245,12 @@ class MembresiaAdmin(YakaGymAdmin):
                         obj.fecha_vencimiento = obj.fecha_inicio + timedelta(days=30)
                         if obj.monto_pagado is None: obj.monto_pagado = obj.disciplina.precio_mensual
 
-                    # 3. Crear Transaccion
+                    # 3. Guardar la membresia PRIMERO para obtener el ID
+                    # Importante: No asignamos transaccion todavia
+                    obj.transaccion = None
+                    super().save_model(request, obj, form, change)
+
+                    # 4. Ahora obj tiene Pk, Creamos la transaccion
                     nueva_transaccion = Transaccion.objects.create(
                         caja=caja_abierta,
                         usuario=request.user,
@@ -256,23 +261,27 @@ class MembresiaAdmin(YakaGymAdmin):
                         membresia=obj # Vinculo formal
                     )
 
-                    # 4. Crear DetalleTransaccion (por defecto, EFECTIVO)
+                    # 5. Crear DetalleTransaccion
                     DetalleTransaccion.objects.create(
                         transaccion=nueva_transaccion,
-                        metodo_pago=DetalleTransaccion.METODO_EFECTIVO,
+                        metodo_pago=obj.metodo_pago,
+                        comprobante=obj.comprobante,
                         monto=obj.monto_pagado
                     )
 
-                    # 5. Enlazar transaccion a la membresía
+                    # 6. Actualizar la membresia con la transaccion creada
                     obj.transaccion = nueva_transaccion
+                    obj.save(update_fields=['transaccion'])
                     
-                    # 6. Activar miembro
+                    # 7. Activar miembro
                     if obj.miembro.estado != 'ACTIVA':
                         obj.miembro.estado = 'ACTIVA'
                         obj.miembro.save()
 
-                    # 7. Guardar la membresía
-                    super().save_model(request, obj, form, change)
+                    # 8. Guardar la membresía
+                    # super().save_model(request, obj, form, change)
+
+                    messages.success(request, f"Membresía creada exitosamente, Transacción #{nueva_transaccion.id} generada.")
 
             except Caja.DoesNotExist:
                 messages.error(request, "Acción no permitida: No tienes una caja abierta para registrar la transacción.")
