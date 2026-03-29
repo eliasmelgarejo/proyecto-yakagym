@@ -128,6 +128,7 @@ STATIC_URL = 'static/'
 
 STATICFILES_DIRS = [
     BASE_DIR / 'miembros/static',
+    BASE_DIR / 'dashboard/static',
 ]
 
 # Directorio donde collectstatic recogerá todos los archivos estáticos.

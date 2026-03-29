@@ -1,46 +1,223 @@
-{% extends "admin/base_site.html" %}
-{% load i18n admin_urls %}
+{% extends 'dashboard/base_dashboard.html' %}
+{% load humanize %}
 
-{% block breadcrumbs %}
-<div class="breadcrumbs">
-    <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
-    &rsaquo; {% translate 'Dashboard Personalizado' %}
-</div>
-{% endblock %}
+{% block title %}Admin Dashboard{% endblock %}
 
 {% block content %}
-<div id="content-main">
-    <div class="module" id="members-expiring-soon-module">
-        <h2>{% translate "Miembros Próximos a Vencer" %} (Rango: {{ expiration_range_days }})</h2>
-        {% if members_expiring_soon %}
-        <div class="changelist-form-container">
-            <table id="result_list" class="striped">
-                <thead>
-                    <tr>
-                        <th>{% translate "Miembro" %}</th>
-                        <th>{% translate "Estado" %}</th>
-                        <th>{% translate "Vencimiento" %}</th>
-                        <th>{% translate "Acción" %}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for member in members_expiring_soon %}
-                    <tr class="{% cycle 'row1' 'row2' %}">
-                        <td><a href="{% url 'admin:miembros_miembro_change' member.pk %}">{{ member.nombre }} {{ member.apellido }} ({{ member.ci }})</a></td>
-                        <td>{{ member.estado }}</td>
-                        <td>{{ member.max_vencimiento|date:"d M Y" }}</td>
-                        <td>
-                            <a href="{% url 'admin:miembros_miembro_change' member.pk %}" class="button">{% translate "Ver Detalles" %}</a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    <!-- Alerta Crítica: Modo Pánico -->
+    <div class="panic-alert">
+        <div class="panic-icon">
+            <i class="fas fa-exclamation-triangle"></i>
         </div>
-        {% else %}
-        <p>{% translate "No hay miembros con membresías próximas a vencer en el rango seleccionado." %}</p>
-        {% endif %}
+        <div class="panic-content">
+            <h2><i class="fas fa-clock"></i> ALERTA DE VENCIMIENTOS CRÍTICOS</h2>
+            <p>Miembros que requieren atención inmediata para renovación (Estado Activo)</p>
+            <div class="panic-stats">
+                <div class="panic-stat">
+                    <span class="number animate-number" data-value="{{ vencen_hoy }}" style="color: #fff;">{{ vencen_hoy }}</span>
+                    <span class="label">Vencen Hoy</span>
+                </div>
+                <div class="panic-stat">
+                    <span class="number animate-number" data-value="{{ vencen_manana }}" style="color: #fde047;">{{ vencen_manana }}</span>
+                    <span class="label">Vencen Mañana</span>
+                </div>
+                <div class="panic-stat">
+                    <span class="number animate-number" data-value="{{ vencen_3_dias }}" style="color: #fbbf24;">{{ vencen_3_dias }}</span>
+                    <span class="label">Próximos 3 días</span>
+                </div>
+                <div class="panic-stat">
+                    <span class="number" style="color: #fff;">Gs. {{ ingreso_potencial|intcomma }}</span>
+                    <span class="label">Ingreso Potencial</span>
+                </div>
+            </div>
+        </div>
+        <div class="panic-actions">
+            <a href="{% url 'admin:miembros_membresia_changelist' %}?fecha_vencimiento__lte={{ hoy|date:'Y-m-d' }}" class="btn-panic">
+                <i class="fas fa-phone"></i> Gestionar Vencidos
+            </a>
+            <button class="btn-panic secondary">
+                <i class="fas fa-file-export"></i> Exportar Lista
+            </button>
+        </div>
     </div>
-    {# You can add more modules/content here for your custom dashboard #}
-</div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-header">
+                <div>
+                    <div class="kpi-title">Ingresos Hoy</div>
+                    <div class="kpi-value">Gs. {{ ingresos_hoy|intcomma }}</div>
+                    <div class="kpi-change positive">
+                        <i class="fas fa-check-circle"></i> Transacciones confirmadas
+                    </div>
+                </div>
+                <div class="kpi-icon cash">
+                    <i class="fas fa-money-bill-wave"></i>
+                </div>
+            </div>
+            <div style="margin-top: 1rem; font-size: 0.8rem; color: rgba(255,255,255,0.5);">
+                <span style="color: #34d399;">● Efectivo:</span> Gs. {{ ingresos_efectivo|intcomma }} | 
+                <span style="color: #fbbf24;">● Otros:</span> Gs. {{ ingresos_otros|intcomma }}
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-header">
+                <div>
+                    <div class="kpi-title">Miembros Activos</div>
+                    <div class="kpi-value animate-number" data-value="{{ total_activos }}">{{ total_activos }}</div>
+                    <div class="kpi-change positive">
+                        <i class="fas fa-users"></i> Estado General
+                    </div>
+                </div>
+                <div class="kpi-icon users">
+                    <i class="fas fa-users"></i>
+                </div>
+            </div>
+            <div style="margin-top: 1rem; font-size: 0.8rem; color: rgba(255,255,255,0.5);">
+                Total registrados en el gimnasio
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-header">
+                <div>
+                    <div class="kpi-title">Alertas Stock</div>
+                    <div class="kpi-value animate-number" data-value="{{ productos_bajo_stock }}">{{ productos_bajo_stock }}</div>
+                    <div class="kpi-change {% if productos_bajo_stock > 0 %}negative{% else %}positive{% endif %}">
+                        <i class="fas fa-box"></i> Productos bajo stock
+                    </div>
+                </div>
+                <div class="kpi-icon trend">
+                    <i class="fas fa-shopping-cart"></i>
+                </div>
+            </div>
+            <div style="margin-top: 1rem; font-size: 0.8rem; color: rgba(255,255,255,0.5);">
+                Items con stock menor o igual a 5
+            </div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-header">
+                <div>
+                    <div class="kpi-title">Estado de Cajas</div>
+                    <div class="kpi-value" style="color: #34d399;">{{ total_cajas_abiertas }}</div>
+                    <div class="kpi-change" style="color: rgba(255,255,255,0.6);">
+                        <i class="fas fa-cash-register"></i> Abiertas actualmente
+                    </div>
+                </div>
+                <div class="kpi-icon box">
+                    <i class="fas fa-coins"></i>
+                </div>
+            </div>
+            <div class="cashier-status">
+                {% for caja in cajas_data %}
+                <a href="{% url 'admin:tesoreria_caja_change' caja.id %}" class="cashier-card open">
+                    <div class="cashier-name">{{ caja.cajero }}</div>
+                    <div class="cashier-info">Abierta {{ caja.apertura|date:"H:i" }}</div>
+                    <div class="cashier-amount">Gs. {{ caja.monto_actual|intcomma }}</div>
+                </a>
+                {% empty %}
+                <div class="cashier-card closed" style="width: 100%; grid-column: span 2; text-align: center;">
+                    No hay cajas abiertas en este momento
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="charts-grid">
+        <div class="chart-container">
+            <div class="chart-header">
+                <div class="chart-title">
+                    <i class="fas fa-chart-line" style="color: var(--crocodile-green); margin-right: 0.5rem;"></i>
+                    Tendencia de Ingresos (Últimos 7 días)
+                </div>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="incomeChart"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <div class="chart-header">
+                <div class="chart-title">
+                    <i class="fas fa-users" style="color: var(--crocodile-blue); margin-right: 0.5rem;"></i>
+                    Miembros por Disciplina
+                </div>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="disciplineChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de Vencimientos Críticos -->
+    <div class="table-container">
+        <div class="table-header">
+            <div class="table-title">
+                <i class="fas fa-exclamation-circle" style="color: var(--danger); margin-right: 0.5rem;"></i>
+                Próximos Vencimientos Críticos (Top 5)
+            </div>
+            <div>
+                <span class="badge badge-danger">{{ vencen_hoy }} Vencen Hoy</span>
+                <span class="badge badge-warning" style="margin-left: 0.5rem;">{{ vencen_manana }} Mañana</span>
+            </div>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Miembro</th>
+                    <th>CI</th>
+                    <th>Disciplina</th>
+                    <th>Vencimiento</th>
+                    <th>Días Restantes</th>
+                    <th>Estado</th>
+                    <th>Acción</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for membresia in miembros_criticos %}
+                <tr>
+                    <td>
+                        <div class="member-info">
+                            <div class="member-avatar">{{ membresia.miembro.nombre|slice:":1" }}{{ membresia.miembro.apellido|slice:":1" }}</div>
+                            <div class="member-details">
+                                <strong>{{ membresia.miembro.nombre }} {{ membresia.miembro.apellido }}</strong>
+                                <small>{{ membresia.miembro.telefono }}</small>
+                            </div>
+                        </div>
+                    </td>
+                    <td>{{ membresia.miembro.ci }}</td>
+                    <td>{{ membresia.disciplina.nombre }}</td>
+                    <td>{{ membresia.fecha_vencimiento|date:"d/m/Y" }}</td>
+                    <td style="font-weight: 800; color: {% if membresia.dias_restantes_texto == 'HOY' %}var(--danger){% else %}#fbbf24{% endif %};">
+                        {{ membresia.dias_restantes_texto }}
+                    </td>
+                    <td>
+                        <span class="status-badge {{ membresia.urgencia_clase }}">
+                            {% if membresia.dias_restantes_texto == 'HOY' %}CRÍTICO{% else %}URGENTE{% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        <a href="{% url 'admin:miembros_miembro_change' membresia.miembro.id %}" class="action-btn">Gestionar</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 2rem;">No hay vencimientos críticos en los próximos 3 días.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}
+
+{% block js_data %}
+    <script id="tendencia-labels-json" type="application/json">{{ tendencia_labels_json|safe }}</script>
+    <script id="tendencia-data-json" type="application/json">{{ tendencia_data_json|safe }}</script>
+    <script id="disciplinas-labels-json" type="application/json">{{ disciplinas_labels_json|safe }}</script>
+    <script id="disciplinas-data-json" type="application/json">{{ disciplinas_data_json|safe }}</script>
 {% endblock %}
