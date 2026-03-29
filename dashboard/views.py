@@ -21,17 +21,17 @@ def custom_dashboard(request):
     # --- 1. MODO PÁNICO: Alertas de Vencimiento ---
     vencen_hoy = Membresia.objects.filter(
         fecha_vencimiento=hoy,
-        estado='ACTIVA'
+        miembro__estado='ACTIVA'
     ).count()
 
     vencen_manana = Membresia.objects.filter(
         fecha_vencimiento=hoy + timedelta(days=1),
-        estado='ACTIVA'
+        miembro__estado='ACTIVA'
     ).count()
 
     vencen_3_dias = Membresia.objects.filter(
         fecha_vencimiento__range=[hoy + timedelta(days=2), hoy + timedelta(days=3)],
-        estado='ACTIVA'
+        miembro__estado='ACTIVA'
     ).count()
 
     # Ingreso potencial: miembros que vencen pronto * Gs. 150.000 (estimado)
@@ -59,7 +59,7 @@ def custom_dashboard(request):
     ingresos_otros = ingresos_hoy - ingresos_efectivo
 
     # Miembros activos
-    total_activos = Miembro.objects.filter(estado='ACTIVO').count()
+    total_activos = Miembro.objects.filter(estado='ACTIVA').count()
 
     # Stock Bajo
     productos_bajo_stock = Producto.objects.filter(stock__lte=5).count()
@@ -109,7 +109,8 @@ def custom_dashboard(request):
 
     # Distribución por Disciplina
     disciplinas_stats = Membresia.objects.filter(
-        estado='ACTIVA'
+        fecha_vencimiento__gte=hoy, # <-- Membresías activas no vencidas (activas por fecha)
+        miembro__estado='ACTIVA'
     ).values('disciplina__nombre').annotate(
         total=Count('id')
     ).order_by('-total')
@@ -120,7 +121,8 @@ def custom_dashboard(request):
     # --- 5. TABLA DE VENCIMIENTOS CRÍTICOS ---
     miembros_criticos = Membresia.objects.filter(
         fecha_vencimiento__lte=hoy + timedelta(days=3),
-        estado='ACTIVA'
+        fecha_vencimiento__gte=hoy, # <-- Solo las que aún no vencieron o vencen hoy
+        miembro__estado='ACTIVA'
     ).select_related('miembro', 'disciplina').order_by('fecha_vencimiento')[:5]
 
     # Calcular días restantes para la tabla
