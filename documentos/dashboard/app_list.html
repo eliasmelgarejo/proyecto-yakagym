@@ -1,0 +1,102 @@
+{% load i18n %}
+
+<div id="nav-sidebar" class="nav-sidebar">
+    <div class="module" id="recent-actions-module">
+        <h2><i class="fas fa-history" style="margin-right: 0.5rem;"></i>{% translate 'Recent actions' %}</h2>
+        <h3>{% translate 'My actions' %}</h3>
+        {% load log %}
+        {% get_admin_log 10 as admin_log for_user user %}
+        {% if not admin_log %}
+            <p>{% translate 'None available' %}</p>
+        {% else %}
+            <ul class="actionlist">
+                {% for entry in admin_log %}
+                    <li class="{% if entry.is_addition %}addlink{% endif %}{% if entry.is_change %}changelink{% endif %}{% if entry.is_deletion %}deletelink{% endif %}">
+                        {% if entry.is_deletion or not entry.get_admin_url %}
+                            {{ entry.object_repr }}
+                        {% else %}
+                            <a href="{{ entry.get_admin_url }}">{{ entry.object_repr }}</a>
+                        {% endif %}
+                        <br>
+                        {% if entry.content_type %}
+                            <span class="mini quiet">{% filter capfirst %}{{ entry.content_type.name }}{% endfilter %}</span>
+                        {% else %}
+                            <span class="mini quiet">{% translate 'Unknown content' %}</span>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    </div>
+
+    {% for app in app_list %}
+        <div class="module" id="{{ app.app_label }}-module">
+            {% if app.models %}
+                <h2>
+                    {% if app.app_label == 'miembros' %}<i class="fas fa-users" style="margin-right: 0.5rem;"></i>
+                    {% elif app.app_label == 'tesoreria' %}<i class="fas fa-money-bill-wave" style="margin-right: 0.5rem;"></i>
+                    {% elif app.app_label == 'inventario' %}<i class="fas fa-box" style="margin-right: 0.5rem;"></i>
+                    {% elif app.app_label == 'auth' %}<i class="fas fa-user-shield" style="margin-right: 0.5rem;"></i>
+                    {% elif app.app_label == 'dashboard' %}<i class="fas fa-chart-line" style="margin-right: 0.5rem;"></i>
+                    {% else %}<i class="fas fa-folder" style="margin-right: 0.5rem;"></i>
+                    {% endif %}
+                    {{ app.name }}
+                </h2>
+
+                <ul>
+                    {% for model in app.models %}
+                        {% with model_name=model.object_name|lower %}
+                            <li>
+                                <a href="{{ model.admin_url }}"
+                                   class="{% if model.admin_url in request.path|urlencode %}current{% endif %}">
+
+                                    {% if model_name == 'miembro' %}<i class="fas fa-user" style="width: 20px;"></i>
+                                    {% elif model_name == 'membresia' %}<i class="fas fa-id-card" style="width: 20px;"></i>
+                                    {% elif model_name == 'disciplina' %}<i class="fas fa-dumbbell" style="width: 20px;"></i>
+                                    {% elif model_name == 'caja' %}<i class="fas fa-cash-register" style="width: 20px;"></i>
+                                    {% elif model_name == 'transaccion' %}<i class="fas fa-exchange-alt" style="width: 20px;"></i>
+                                    {% elif model_name == 'detalletransaccion' %}<i class="fas fa-receipt" style="width: 20px;"></i>
+                                    {% elif model_name == 'producto' %}<i class="fas fa-shopping-cart" style="width: 20px;"></i>
+                                    {% elif model_name == 'venta' %}<i class="fas fa-shopping-bag" style="width: 20px;"></i>
+                                    {% elif model_name == 'user' %}<i class="fas fa-user-cog" style="width: 20px;"></i>
+                                    {% elif model_name == 'group' %}<i class="fas fa-users-cog" style="width: 20px;"></i>
+                                    {% elif model_name == 'dashboard' %}<i class="fas fa-chart-line" style="width: 20px;"></i>
+                                    {% else %}<i class="fas fa-circle" style="width: 20px; font-size: 0.5rem; opacity: 0.5;"></i>
+                                    {% endif %}
+
+                                    {{ model.name }}
+
+                                    {% if model.add_url %}
+                                        <span style="margin-left: auto; opacity: 0.5; font-size: 0.8rem;">
+                                            <i class="fas fa-plus"></i>
+                                        </span>
+                                    {% endif %}
+                                </a>
+                            </li>
+                        {% endwith %}
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        </div>
+    {% endfor %}
+
+    <!-- Enlace a Dashboard Custom -->
+    <div class="module" style="margin-top: 2rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+        <h2><i class="fas fa-home" style="margin-right: 0.5rem;"></i>Principal</h2>
+        <ul>
+            <li>
+                <a href="{% url 'dashboard:custom_dashboard' %}"
+                   class="{% if request.path == '/admin/dashboard/' %}current{% endif %}">
+                    <i class="fas fa-tachometer-alt" style="width: 20px;"></i>
+                    Dashboard Principal
+                </a>
+            </li>
+            <li>
+                <a href="{% url 'admin:index' %}">
+                    <i class="fas fa-cog" style="width: 20px;"></i>
+                    Administración
+                </a>
+            </li>
+        </ul>
+    </div>
+</div>

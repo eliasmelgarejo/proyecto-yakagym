@@ -1,0 +1,209 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | YakaGym Admin{% endblock %}
+
+{% block extrastyle %}
+    <link rel="stylesheet" type="text/css" href="{% static 'admin/css/custom_admin.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Estilos inline críticos por si el archivo CSS externo falla -->
+    <style>
+        /* Reset crítico para dark mode */
+        body {
+            background: linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e1b4b 100%) !important;
+            color: #f1f5f9 !important;
+            font-family: 'Segoe UI', system-ui, sans-serif !important;
+        }
+
+        /* Header oscuro inmediato */
+        #header {
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%) !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+            color: white !important;
+            padding: 1rem 2rem !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+        }
+
+        #branding h1 {
+            color: white !important;
+            font-weight: 900 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 1px !important;
+        }
+
+        #branding h1 a {
+            color: white !important;
+            text-decoration: none !important;
+        }
+
+        /* Ocultar texto del mapa de iconos si existe */
+        body > div.breadcrumbs + div > div:first-child > div:first-child:not(#nav-sidebar),
+        body > .breadcrumbs + div > div:first-child:not(#nav-sidebar) {
+            display: none !important;
+        }
+
+        /* Sidebar oscuro */
+        #nav-sidebar {
+            background: rgba(30, 41, 59, 0.8) !important;
+            border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+            color: #f1f5f9 !important;
+        }
+
+        #nav-sidebar a {
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+
+        #nav-sidebar a:hover {
+            color: #16a34a !important;
+            background: rgba(22, 163, 74, 0.15) !important;
+        }
+
+        #nav-sidebar a.current {
+            color: #16a34a !important;
+            border-left: 4px solid #16a34a !important;
+        }
+
+        #nav-sidebar caption, #nav-sidebar h2 {
+            color: rgba(255, 255, 255, 0.4) !important;
+            background: transparent !important;
+        }
+
+        /* Breadcrumbs oscuros */
+        .breadcrumbs {
+            background: rgba(15, 23, 42, 0.9) !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+            color: #94a3b8 !important;
+            padding: 1rem 2rem !important;
+        }
+
+        .breadcrumbs a {
+            color: #16a34a !important;
+        }
+
+        /* Contenido oscuro */
+        #content {
+            background: transparent !important;
+        }
+
+        #content-main {
+            background: rgba(30, 41, 59, 0.6) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            border-radius: 16px !important;
+            padding: 1.5rem !important;
+        }
+
+        h1, h2, h3 {
+            color: #f1f5f9 !important;
+        }
+
+        /* Tablas oscuras */
+        table {
+            color: #f1f5f9 !important;
+        }
+
+        th {
+            background: rgba(0, 0, 0, 0.3) !important;
+            color: rgba(255, 255, 255, 0.5) !important;
+        }
+
+        td {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+        }
+
+        /* Botones verdes */
+        .button, input[type="submit"], .submit-row input {
+            background: linear-gradient(135deg, #16a34a, #059669) !important;
+            color: white !important;
+            border: none !important;
+            border-radius: 8px !important;
+            padding: 0.75rem 1.5rem !important;
+        }
+
+        /* Logo styling */
+        .yg-brand {
+            display: flex !important;
+            align-items: center !important;
+            gap: 1rem !important;
+        }
+
+        .yg-logo {
+            width: 45px !important;
+            height: 45px !important;
+            border-radius: 50% !important;
+            border: 3px solid transparent !important;
+            background: linear-gradient(#0f172a, #0f172a) padding-box,
+                        linear-gradient(135deg, #16a34a, #1d4ed8) border-box !important;
+            padding: 2px !important;
+            object-fit: cover !important;
+        }
+
+        .yg-title h1 {
+            margin: 0 !important;
+            font-size: 1.5rem !important;
+            font-weight: 900 !important;
+            text-transform: uppercase !important;
+            background: linear-gradient(135deg, #fff, #34d399) !important;
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+        }
+
+        .yg-title span {
+            font-size: 0.7rem !important;
+            color: rgba(255, 255, 255, 0.5) !important;
+            text-transform: uppercase !important;
+            letter-spacing: 2px !important;
+        }
+    </style>
+{% endblock %}
+
+{% block branding %}
+    <div class="yg-brand">
+        <img src="{% static 'images/yakagym_logo.png' %}" alt="YakaGym" class="yg-logo"
+             onerror="this.style.display='none'; this.nextElementSibling.style.marginLeft='0';">
+        <div class="yg-title">
+            <h1>Yaka Gym</h1>
+            <span>Sistema de Gestión</span>
+        </div>
+    </div>
+{% endblock %}
+
+{% block usertools %}
+    <div id="user-tools">
+        {% block welcome-msg %}
+            <strong>Bienvenido, {{ user.get_short_name|default:user.get_username }}</strong> /
+        {% endblock %}
+        {% block userlinks %}
+            {% if site_url %}
+                <a href="{{ site_url }}">Ver Sitio</a> /
+            {% endif %}
+            {% if user.is_active and user.is_staff %}
+                {% url 'django-admindocs-docroot' as docsroot %}
+                {% if docsroot %}
+                    <a href="{{ docsroot }}">Documentación</a> /
+                {% endif %}
+            {% endif %}
+            {% if user.has_usable_password %}
+                <a href="{% url 'admin:password_change' %}">Cambiar Contraseña</a> /
+            {% endif %}
+            <a href="{% url 'admin:logout' %}">Cerrar Sesión</a>
+        {% endblock %}
+    </div>
+{% endblock %}
+
+{% block nav-global %}
+    {% if user.is_staff %}
+        <div style="margin-left: auto; display: flex; gap: 1rem; align-items: center;">
+            <a href="{% url 'admin:miembros_miembro_add' %}"
+               style="background: linear-gradient(135deg, #16a34a, #059669); color: white; padding: 0.5rem 1rem; border-radius: 8px; text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; box-shadow: 0 4px 15px rgba(22, 163, 74, 0.3);">
+                <i class="fas fa-plus"></i> Nuevo Miembro
+            </a>
+            <a href="{% url 'admin:tesoreria_transaccion_add' %}"
+               style="background: rgba(255,255,255,0.1); color: white; padding: 0.5rem 1rem; border-radius: 8px; text-decoration: none; font-weight: 600; border: 1px solid rgba(255,255,255,0.2); display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fas fa-cash-register"></i> Registrar Venta
+            </a>
+        </div>
+    {% endif %}
+{% endblock %}

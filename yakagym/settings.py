@@ -15,6 +15,11 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+    BASE_DIR / 'miembros/static',
+    BASE_DIR / 'dashboard/static',
+]
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
@@ -126,10 +131,8 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-STATICFILES_DIRS = [
-    BASE_DIR / 'miembros/static',
-    BASE_DIR / 'dashboard/static',
-]
-
 # Directorio donde collectstatic recogerá todos los archivos estáticos.
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Opcional pero recomendado para mejor experiencia
+ADMIN_ENABLED = True
