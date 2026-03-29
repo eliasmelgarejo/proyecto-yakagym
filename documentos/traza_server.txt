@@ -1,0 +1,40 @@
+Watching for file changes with StatReloader
+Performing system checks...
+
+System check identified no issues (0 silenced).
+March 08, 2026 - 22:16:10
+Django version 6.0.1, using settings 'yakagym.settings'
+Starting development server at http://127.0.0.1:8000/
+Quit the server with CONTROL-C.
+
+WARNING: This is a development server. Do not use it in a production setting. Use a production WSGI or ASGI server instead.
+For more information on production servers see: https://docs.djangoproject.com/en/6.0/howto/deployment/
+[08/Mar/2026 22:16:17] "GET /admin/tesoreria/transaccion/add/ HTTP/1.1" 200 25440
+Not Found: /.well-known/appspecific/com.chrome.devtools.json
+[08/Mar/2026 22:16:17] "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 2479
+[08/Mar/2026 22:16:17] "GET /static/admin/css/base.css HTTP/1.1" 200 23100
+[08/Mar/2026 22:16:17] "GET /static/admin/css/dark_mode.css HTTP/1.1" 200 3538
+[08/Mar/2026 22:16:17] "GET /static/admin/css/nav_sidebar.css HTTP/1.1" 200 2810
+[08/Mar/2026 22:16:17] "GET /static/admin/js/theme.js HTTP/1.1" 200 1653
+[08/Mar/2026 22:16:17] "GET /static/admin/css/forms.css HTTP/1.1" 200 8788
+[08/Mar/2026 22:16:17] "GET /static/admin/css/responsive.css HTTP/1.1" 200 16273
+[08/Mar/2026 22:16:17] "GET /static/admin/js/jquery.init.js HTTP/1.1" 200 347
+[08/Mar/2026 22:16:17] "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[08/Mar/2026 22:16:17] "GET /static/tesoreria/js/transaccion_total.js HTTP/1.1" 200 5555
+[08/Mar/2026 22:16:17] "GET /static/admin/js/core.js HTTP/1.1" 200 6208
+[08/Mar/2026 22:16:17] "GET /static/admin/js/vendor/jquery/jquery.js HTTP/1.1" 200 285314
+[08/Mar/2026 22:16:17] "GET /static/admin/js/inlines.js HTTP/1.1" 200 15628
+[08/Mar/2026 22:16:17] "GET /static/admin/css/widgets.css HTTP/1.1" 200 11811
+[08/Mar/2026 22:16:17] "GET /static/admin/js/admin/RelatedObjectLookups.js HTTP/1.1" 200 9777
+[08/Mar/2026 22:16:17] "GET /static/admin/js/actions.js HTTP/1.1" 200 8076
+[08/Mar/2026 22:16:17] "GET /static/admin/js/urlify.js HTTP/1.1" 200 7887
+[08/Mar/2026 22:16:17] "GET /static/admin/js/prepopulate.js HTTP/1.1" 200 1531
+[08/Mar/2026 22:16:17] "GET /static/admin/js/vendor/xregexp/xregexp.js HTTP/1.1" 200 325171
+[08/Mar/2026 22:16:17] "GET /static/admin/js/prepopulate_init.js HTTP/1.1" 200 586
+[08/Mar/2026 22:16:17] "GET /static/admin/js/nav_sidebar.js HTTP/1.1" 200 3063
+[08/Mar/2026 22:16:18] "GET /static/admin/js/change_form.js HTTP/1.1" 200 606
+[08/Mar/2026 22:16:18] "GET /static/admin/img/icon-unknown.svg HTTP/1.1" 200 806
+[08/Mar/2026 22:16:18] "GET /static/admin/img/icon-addlink.svg HTTP/1.1" 200 593
+[08/Mar/2026 22:16:18] "GET /static/admin/img/inline-delete.svg HTTP/1.1" 200 651
+Not Found: /favicon.ico
+[08/Mar/2026 22:16:18] "GET /favicon.ico HTTP/1.1" 404 2368

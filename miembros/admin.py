@@ -1,3 +1,4 @@
+from django.template.response import TemplateResponse
 from django.urls import reverse
 from django.db.models import Max
 from datetime import timedelta
@@ -58,9 +59,23 @@ class YakaGymAdmin(admin.ModelAdmin):
         return []
 
     def change_view(self, request, object_id, form_url='', extra_context=None):
-        extra_context = extra_context or {}
-        extra_context['is_read_only_mode'] = not request.GET.get('edit')
-        return super().change_view(request, object_id, form_url, extra_context=extra_context)
+        # Call the superclass method first. This will process the request
+        # and render the form, populating its context.
+        # It also merges the extra_context passed to it.
+        response = super().change_view(request, object_id, form_url, extra_context=extra_context)
+
+        # Now, check if the response is a TemplateResponse (which it should be for change_view)
+        # and then add YakaGymAdmin's specific context variables.
+        # This ensures that our is_read_only_mode is added *after* the superclass
+        # and any child's extra_context has been processed.
+        if isinstance(response, TemplateResponse):
+            # Ensure context_data exists; it might be None if the super call returned a redirect or similar.
+            if response.context_data is None:
+                response.context_data = {}
+            
+            response.context_data['is_read_only_mode'] = not request.GET.get('edit')
+        
+        return response
 
 
 from django.db import transaction
@@ -131,7 +146,7 @@ class YakaGymAdmin(admin.ModelAdmin):
 @admin.register(Miembro)
 class MiembroAdmin(YakaGymAdmin):
     list_display = ('ci', 'nombre', 'apellido', 'telefono', 'email', 'estado_coloreado', 'ultima_fecha_vencimiento')
-    search_fields = ('nombre', 'apellido', 'ci')
+    search_fields = ("ci", "nombre", "apellido")
     list_filter = ('estado', MiembroVencimientoFilter)
     actions = ['ejecutar_actualizacion_estados'] # Añadir la acción aquí
 
@@ -237,7 +252,8 @@ class MembresiaAdmin(YakaGymAdmin):
                         miembro=obj.miembro,
                         tipo=Transaccion.TIPO_MEMBRESIA,
                         monto_total=obj.monto_pagado,
-                        observacion=f"Pago de membresía {obj.get_tipo_display()} para {obj.miembro}."
+                        observacion=f"Pago de membresía {obj.get_tipo_display()} para {obj.miembro}.",
+                        membresia=obj # Vinculo formal
                     )
 
                     # 4. Crear DetalleTransaccion (por defecto, EFECTIVO)
