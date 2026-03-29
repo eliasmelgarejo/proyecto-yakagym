@@ -9,8 +9,10 @@
             <li><a href="{% url 'admin:tesoreria_caja_cerrar' original.pk %}" class="historylink">{% trans "Cerrar Caja" %}</a></li>
         {% elif original.estado == 'CERRADA' %}
             <li><a href="{% url 'admin:tesoreria_caja_contabilizar' original.pk %}" class="historylink">{% trans "Contabilizar Caja" %}</a></li>
+            <li><a href="{% url 'admin:tesoreria_caja_arqueo_excel' original.pk %}" class="historylink" style="background-color: #28a745; color: white;">{% trans "Descargar Arqueo (Excel)" %}</a></li>
         {% elif original.estado == 'CONTABILIZADA' %}
             <li><a href="{% url 'admin:tesoreria_caja_reabrir' original.pk %}" class="historylink">{% trans "Reabrir Caja" %}</a></li>
+            <li><a href="{% url 'admin:tesoreria_caja_arqueo_excel' original.pk %}" class="historylink" style="background-color: #28a745; color: white;">{% trans "Descargar Arqueo (Excel)" %}</a></li>
         {% endif %}
     {% endif %}
 {% endblock %}

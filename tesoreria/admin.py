@@ -73,8 +73,13 @@ class CajaAdmin(admin.ModelAdmin):
             path('<path:object_id>/cerrar/', self.admin_site.admin_view(self.cerrar_caja_view), name='tesoreria_caja_cerrar'),
             path('<path:object_id>/contabilizar/', self.admin_site.admin_view(self.contabilizar_view), name='tesoreria_caja_contabilizar'),
             path('<path:object_id>/reabrir/', self.admin_site.admin_view(self.reabrir_view), name='tesoreria_caja_reabrir'),
+            path('<path:object_id>/arqueo-excel/', self.admin_site.admin_view(self.arqueo_excel_view), name='tesoreria_caja_arqueo_excel'),
         ]
         return custom_urls + urls
+
+    def arqueo_excel_view(self, request, object_id):
+        from .views import exportar_arqueo_excel
+        return exportar_arqueo_excel(request, object_id)
 
     def response_change(self, request, obj):
         if "_cerrar-caja" in request.POST:
