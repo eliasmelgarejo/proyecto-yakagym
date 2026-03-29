@@ -66,7 +66,7 @@ class Disciplina(models.Model):
 
 
 
-from tesoreria.models import Transaccion
+from tesoreria.models import Transaccion, DetalleTransaccion # Import Caja and DetalleTransaccion for payment methods
 
 class Membresia(models.Model):
     TIPO_DIARIA = 'DIARIA'
@@ -84,6 +84,12 @@ class Membresia(models.Model):
     miembro = models.ForeignKey(Miembro, on_delete=models.CASCADE, related_name='membresias')
     disciplina = models.ForeignKey(Disciplina, on_delete=models.CASCADE, related_name='membresias')
     tipo = models.CharField(max_length=15, choices=TIPO_MEMBRESIA_CHOICES, default=TIPO_MENSUAL)
+    metodo_pago = models.CharField(
+        max_length=20,
+        choices=DetalleTransaccion.METODO_PAGO_CHOICES, # Reusing payment methods from Tesoreria
+        default=DetalleTransaccion.METODO_EFECTIVO
+    )
+    comprobante = models.CharField(max_length=100, blank=True, null=True, help_text="Nro. de comprobante o referencia")
     fecha_inicio = models.DateField(blank=True, null=True)
     fecha_vencimiento = models.DateField(blank=True, null=True)
     monto_pagado = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)

@@ -69,7 +69,7 @@ class VentaAdmin(admin.ModelAdmin):
 
     fieldsets = (
         (None, {
-            'fields': ('cliente', 'medio_pago', 'estado',)
+            'fields': ('cliente', 'medio_pago', 'comprobante', 'estado',)
         }),
         ('Información de la Venta', {
             'fields': ('monto_total_venta_display', 'usuario', 'caja'),

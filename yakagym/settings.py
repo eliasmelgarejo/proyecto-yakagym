@@ -31,13 +31,13 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
-    # 'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.humanize',
     # Mis Apps
     'miembros.apps.MiembrosConfig',
     'tesoreria.apps.TesoreriaConfig',
@@ -128,6 +128,7 @@ STATIC_URL = 'static/'
 
 STATICFILES_DIRS = [
     BASE_DIR / 'miembros/static',
+    BASE_DIR / 'dashboard/static',
 ]
 
 # Directorio donde collectstatic recogerá todos los archivos estáticos.

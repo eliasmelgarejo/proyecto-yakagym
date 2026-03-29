@@ -40,6 +40,7 @@ class Venta(models.Model):
         default=DetalleTransaccion.METODO_EFECTIVO,
         verbose_name=_("Medio de Pago")
     )
+    comprobante = models.CharField(max_length=100, blank=True, null=True, help_text="Nro. de comprobante o referencia")
     usuario = models.ForeignKey(User, on_delete=models.PROTECT, verbose_name=_("Usuario"), blank=True)
     caja = models.ForeignKey(Caja, on_delete=models.PROTECT, verbose_name=_("Caja"), blank=True)
     estado = models.CharField(max_length=15, choices=ESTADO_CHOICES, default=ESTADO_PENDIENTE, verbose_name=_("Estado"))
