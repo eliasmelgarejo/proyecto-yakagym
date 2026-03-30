@@ -119,7 +119,7 @@ class VentaFlowValidationTest(TestCase):
         self.assertEqual(self.producto.stock, 8) # 10 - 2 = 8
         
         # Check transaction creation
-        transaccion = Transaccion.objects.filter(observacion=f"Venta de Producto #{venta.id}").first()
+        transaccion = Transaccion.objects.filter(observacion=f"Venta #{venta.id}").first()
         self.assertIsNotNone(transaccion)
         self.assertEqual(transaccion.monto_total, Decimal('200.00'))
         self.assertEqual(transaccion.tipo, Transaccion.TIPO_VENTA_PRODUCTO)
@@ -199,7 +199,7 @@ class VentaFlowValidationTest(TestCase):
         self.producto.refresh_from_db()
         self.assertEqual(self.producto.stock, 10) # 5 + 5 = 10
         
-        transaccion = Transaccion.objects.filter(observacion=f"Venta de Producto #{venta.id}").first()
+        transaccion = Transaccion.objects.filter(observacion=f"Venta #{venta.id}").first()
         self.assertEqual(transaccion.estado, Transaccion.ESTADO_ANULADA)
         
         # Check caja theoretical balance update

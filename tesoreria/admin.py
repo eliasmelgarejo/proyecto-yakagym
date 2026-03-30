@@ -201,12 +201,12 @@ class TransaccionAdmin(YakaGymAdmin):
         return form
 
     def get_readonly_fields(self, request, obj=None):
-        if obj is None:
-            return ('monto_total_visual',)
-        # Incluir campos de solo lectura dinámicos
-        fields = [field.name for field in self.model._meta.fields if field.name != 'id']
-        fields.extend(['link_venta', 'link_membresia'])
-        return fields
+        readonly = ['monto_total_visual', 'link_venta', 'link_membresia']
+        if obj:
+            # Para objetos existentes, todos los campos del modelo son readonly
+            model_fields = [field.name for field in self.model._meta.fields if field.name != 'id']
+            readonly.extend(model_fields)
+        return readonly
 
     @admin.display(description="Monto Total")
     def monto_total_visual(self, obj=None):
