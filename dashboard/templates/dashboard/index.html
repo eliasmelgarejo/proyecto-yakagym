@@ -4,6 +4,10 @@
 {% block title %}Admin Dashboard{% endblock %}
 
 {% block content %}
+    <!-- DEBUG: Datos ocultos para verificar (eliminar en producción) -->
+    <!-- Labels: {{ disciplinas_labels_json }} -->
+    <!-- Data: {{ disciplinas_data_json }} -->
+
     <!-- Alerta Crítica: Modo Pánico -->
     <div class="panic-alert">
         <div class="panic-icon">
@@ -14,15 +18,15 @@
             <p>Miembros que requieren atención inmediata para renovación (Estado Activo)</p>
             <div class="panic-stats">
                 <div class="panic-stat">
-                    <span class="number animate-number" data-value="{{ vencen_hoy }}" style="color: #fff;">{{ vencen_hoy }}</span>
+                    <span class="number" style="color: #fff;">{{ vencen_hoy }}</span>
                     <span class="label">Vencen Hoy</span>
                 </div>
                 <div class="panic-stat">
-                    <span class="number animate-number" data-value="{{ vencen_manana }}" style="color: #fde047;">{{ vencen_manana }}</span>
+                    <span class="number" style="color: #fde047;">{{ vencen_manana }}</span>
                     <span class="label">Vencen Mañana</span>
                 </div>
                 <div class="panic-stat">
-                    <span class="number animate-number" data-value="{{ vencen_3_dias }}" style="color: #fbbf24;">{{ vencen_3_dias }}</span>
+                    <span class="number" style="color: #fbbf24;">{{ vencen_3_dias }}</span>
                     <span class="label">Próximos 3 días</span>
                 </div>
                 <div class="panic-stat">
@@ -35,7 +39,7 @@
             <a href="{% url 'admin:miembros_membresia_changelist' %}?fecha_vencimiento__lte={{ hoy|date:'Y-m-d' }}" class="btn-panic">
                 <i class="fas fa-phone"></i> Gestionar Vencidos
             </a>
-            <button class="btn-panic secondary">
+            <button class="btn-panic secondary" onclick="exportarLista()">
                 <i class="fas fa-file-export"></i> Exportar Lista
             </button>
         </div>
@@ -57,7 +61,7 @@
                 </div>
             </div>
             <div style="margin-top: 1rem; font-size: 0.8rem; color: rgba(255,255,255,0.5);">
-                <span style="color: #34d399;">● Efectivo:</span> Gs. {{ ingresos_efectivo|intcomma }} | 
+                <span style="color: #34d399;">● Efectivo:</span> Gs. {{ ingresos_efectivo|intcomma }} |
                 <span style="color: #fbbf24;">● Otros:</span> Gs. {{ ingresos_otros|intcomma }}
             </div>
         </div>
@@ -66,7 +70,7 @@
             <div class="kpi-header">
                 <div>
                     <div class="kpi-title">Miembros Activos</div>
-                    <div class="kpi-value animate-number" data-value="{{ total_activos }}">{{ total_activos }}</div>
+                    <div class="kpi-value">{{ total_activos }}</div>
                     <div class="kpi-change positive">
                         <i class="fas fa-users"></i> Estado General
                     </div>
@@ -84,7 +88,7 @@
             <div class="kpi-header">
                 <div>
                     <div class="kpi-title">Alertas Stock</div>
-                    <div class="kpi-value animate-number" data-value="{{ productos_bajo_stock }}">{{ productos_bajo_stock }}</div>
+                    <div class="kpi-value">{{ productos_bajo_stock }}</div>
                     <div class="kpi-change {% if productos_bajo_stock > 0 %}negative{% else %}positive{% endif %}">
                         <i class="fas fa-box"></i> Productos bajo stock
                     </div>
@@ -120,7 +124,7 @@
                 </a>
                 {% empty %}
                 <div class="cashier-card closed" style="width: 100%; grid-column: span 2; text-align: center;">
-                    No hay cajas abiertas en este momento
+                    No hay cajas abiertas
                 </div>
                 {% endfor %}
             </div>
@@ -129,10 +133,11 @@
 
     <!-- Charts Section -->
     <div class="charts-grid">
+        <!-- Gráfico de Tendencia -->
         <div class="chart-container">
             <div class="chart-header">
                 <div class="chart-title">
-                    <i class="fas fa-chart-line" style="color: var(--crocodile-green); margin-right: 0.5rem;"></i>
+                    <i class="fas fa-chart-line" style="color: #16a34a; margin-right: 0.5rem;"></i>
                     Tendencia de Ingresos (Últimos 7 días)
                 </div>
             </div>
@@ -141,14 +146,15 @@
             </div>
         </div>
 
+        <!-- Gráfico de Disciplinas -->
         <div class="chart-container">
             <div class="chart-header">
                 <div class="chart-title">
-                    <i class="fas fa-users" style="color: var(--crocodile-blue); margin-right: 0.5rem;"></i>
+                    <i class="fas fa-users" style="color: #1d4ed8; margin-right: 0.5rem;"></i>
                     Miembros por Disciplina
                 </div>
             </div>
-            <div class="chart-wrapper">
+            <div class="chart-wrapper" id="disciplina-chart-wrapper">
                 <canvas id="disciplineChart"></canvas>
             </div>
         </div>
@@ -158,7 +164,7 @@
     <div class="table-container">
         <div class="table-header">
             <div class="table-title">
-                <i class="fas fa-exclamation-circle" style="color: var(--danger); margin-right: 0.5rem;"></i>
+                <i class="fas fa-exclamation-circle" style="color: #ef4444; margin-right: 0.5rem;"></i>
                 Próximos Vencimientos Críticos (Top 5)
             </div>
             <div>
@@ -173,7 +179,7 @@
                     <th>CI</th>
                     <th>Disciplina</th>
                     <th>Vencimiento</th>
-                    <th>Días Restantes</th>
+                    <th>Días</th>
                     <th>Estado</th>
                     <th>Acción</th>
                 </tr>
@@ -186,14 +192,13 @@
                             <div class="member-avatar">{{ membresia.miembro.nombre|slice:":1" }}{{ membresia.miembro.apellido|slice:":1" }}</div>
                             <div class="member-details">
                                 <strong>{{ membresia.miembro.nombre }} {{ membresia.miembro.apellido }}</strong>
-                                <small>{{ membresia.miembro.telefono }}</small>
                             </div>
                         </div>
                     </td>
                     <td>{{ membresia.miembro.ci }}</td>
-                    <td>{{ membresia.disciplina.nombre }}</td>
+                    <td>{{ membresia.disciplina.nombre|default:"-" }}</td>
                     <td>{{ membresia.fecha_vencimiento|date:"d/m/Y" }}</td>
-                    <td style="font-weight: 800; color: {% if membresia.dias_restantes_texto == 'HOY' %}var(--danger){% else %}#fbbf24{% endif %};">
+                    <td style="font-weight: 800; {% if membresia.dias_restantes_texto == 'HOY' %}color: #ef4444;{% else %}color: #fbbf24;{% endif %}">
                         {{ membresia.dias_restantes_texto }}
                     </td>
                     <td>
@@ -207,17 +212,153 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="7" style="text-align: center; padding: 2rem;">No hay vencimientos críticos en los próximos 3 días.</td>
+                    <td colspan="7" style="text-align: center; padding: 2rem; color: #94a3b8;">
+                        No hay vencimientos críticos en los próximos 3 días.
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
-{% endblock %}
 
-{% block js_data %}
-    <script id="tendencia-labels-json" type="application/json">{{ tendencia_labels_json|safe }}</script>
-    <script id="tendencia-data-json" type="application/json">{{ tendencia_data_json|safe }}</script>
-    <script id="disciplinas-labels-json" type="application/json">{{ disciplinas_labels_json|safe }}</script>
-    <script id="disciplinas-data-json" type="application/json">{{ disciplinas_data_json|safe }}</script>
+    <!-- JAVASCRIPT EMBEBIDO DIRECTAMENTE -->
+    <script>
+        // CONFIGURACIÓN GLOBAL CHART.JS
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.1)';
+
+        // DATOS DESDE DJANGO - USAR safe para evitar escape de comillas
+        const tendenciaLabels = {{ tendencia_labels_json|safe }};
+        const tendenciaData = {{ tendencia_data_json|safe }};
+        const disciplinasLabels = {{ disciplinas_labels_json|safe }};
+        const disciplinasData = {{ disciplinas_data_json|safe }};
+
+        // DEBUG: Verificar datos en consola
+        console.log('=== DEBUG CHARTS ===');
+        console.log('Tendencia Labels:', tendenciaLabels);
+        console.log('Tendencia Data:', tendenciaData);
+        console.log('Disciplinas Labels:', disciplinasLabels);
+        console.log('Disciplinas Data:', disciplinasData);
+        console.log('====================');
+
+        // GRÁFICO DE TENDENCIA (Ingresos)
+        const incomeCtx = document.getElementById('incomeChart');
+        if (incomeCtx && tendenciaData.length > 0) {
+            new Chart(incomeCtx, {
+                type: 'line',
+                data: {
+                    labels: tendenciaLabels,
+                    datasets: [{
+                        label: 'Ingresos (Gs.)',
+                        data: tendenciaData,
+                        borderColor: '#16a34a',
+                        backgroundColor: 'rgba(22, 163, 74, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: '#16a34a',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#f1f5f9' } }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#94a3b8',
+                                callback: function(value) {
+                                    return 'Gs. ' + (value/1000) + 'K';
+                                }
+                            },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' }
+                        },
+                        x: {
+                            ticks: { color: '#94a3b8' },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // GRÁFICO DE DISCIPLINAS (Dona)
+        const disciplineCtx = document.getElementById('disciplineChart');
+        const disciplinaWrapper = document.getElementById('disciplina-chart-wrapper');
+
+        if (disciplinasData && disciplinasData.length > 0 && disciplinasData[0] > 0) {
+            // Hay datos, crear gráfico
+            if (disciplineCtx) {
+                new Chart(disciplineCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: disciplinasLabels,
+                        datasets: [{
+                            data: disciplinasData,
+                            backgroundColor: [
+                                '#dc2626',  // Rojo - crossfit
+                                '#16a34a',  // Verde - musculacion
+                                '#1d4ed8',  // Azul - funcional
+                                '#f59e0b',  // Amarillo
+                                '#8b5cf6',  // Púrpura
+                                '#ec4899'   // Rosa
+                            ],
+                            borderWidth: 0,
+                            hoverOffset: 10
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '70%',
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    color: '#f1f5f9',
+                                    padding: 20,
+                                    usePointStyle: true,
+                                    font: { size: 12 }
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.parsed || 0;
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = ((value / total) * 100).toFixed(1);
+                                        return `${label}: ${value} miembros (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        } else {
+            // No hay datos, mostrar mensaje
+            console.log('No hay datos de disciplinas, mostrando mensaje alternativo');
+            if (disciplinaWrapper) {
+                disciplinaWrapper.innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: center; height: 300px; color: #94a3b8; flex-direction: column; text-align: center;">
+                        <i class="fas fa-chart-pie" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.3;"></i>
+                        <span style="font-size: 1rem;">No hay datos de disciplinas disponibles</span>
+                        <small style="margin-top: 0.5rem; opacity: 0.6;">Datos recibidos: ${JSON.stringify(disciplinasData)}</small>
+                    </div>
+                `;
+            }
+        }
+
+        // Función para exportar lista (placeholder)
+        function exportarLista() {
+            alert('Función de exportación en desarrollo');
+        }
+    </script>
 {% endblock %}

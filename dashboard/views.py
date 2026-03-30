@@ -1,7 +1,10 @@
+# Copia esto en tu dashboard/views.py
+# Cambios: Agrega manejo de datos vacíos y debug para el gráfico de disciplinas
+
 import json
-from django.shortcuts import render, redirect
+from django.shortcuts import render
 from django.contrib.admin.views.decorators import staff_member_required
-from django.db.models import Count, Sum, Q
+from django.db.models import Count, Sum
 from django.utils import timezone
 from datetime import timedelta
 from decimal import Decimal
@@ -34,21 +37,18 @@ def custom_dashboard(request):
         miembro__estado='ACTIVA'
     ).count()
 
-    # Ingreso potencial: miembros que vencen pronto * Gs. 150.000 (estimado)
     ingreso_potencial = (vencen_hoy + vencen_manana + vencen_3_dias) * 150000
 
     # --- 2. KPIs PRINCIPALES ---
-    # Ingresos hoy
     transacciones_hoy = Transaccion.objects.filter(
         fecha_hora__date=hoy,
         estado=Transaccion.ESTADO_CONFIRMADA
     )
-    
+
     ingresos_hoy = transacciones_hoy.filter(
         tipo__in=[Transaccion.TIPO_MEMBRESIA, Transaccion.TIPO_VENTA_PRODUCTO, Transaccion.TIPO_INGRESO_VARIO]
     ).aggregate(total=Sum('monto_total'))['total'] or 0
 
-    # Desglose por método de pago (hoy)
     ingresos_efectivo = DetalleTransaccion.objects.filter(
         transaccion__fecha_hora__date=hoy,
         transaccion__estado=Transaccion.ESTADO_CONFIRMADA,
@@ -57,11 +57,7 @@ def custom_dashboard(request):
     ).aggregate(total=Sum('monto'))['total'] or 0
 
     ingresos_otros = ingresos_hoy - ingresos_efectivo
-
-    # Miembros activos
     total_activos = Miembro.objects.filter(estado='ACTIVA').count()
-
-    # Stock Bajo
     productos_bajo_stock = Producto.objects.filter(stock__lte=5).count()
 
     # --- 3. ESTADO DE CAJAS ---
@@ -70,19 +66,18 @@ def custom_dashboard(request):
 
     cajas_data = []
     for caja in cajas_abiertas_qs:
-        # Calcular monto actual en caja: monto_inicial + ingresos - egresos
         ingresos_caja = caja.transacciones.filter(
             tipo__in=[Transaccion.TIPO_MEMBRESIA, Transaccion.TIPO_VENTA_PRODUCTO, Transaccion.TIPO_INGRESO_VARIO],
             estado=Transaccion.ESTADO_CONFIRMADA
         ).aggregate(total=Sum('monto_total'))['total'] or 0
-        
+
         egresos_caja = caja.transacciones.filter(
             tipo=Transaccion.TIPO_EGRESO_VARIO,
             estado=Transaccion.ESTADO_CONFIRMADA
         ).aggregate(total=Sum('monto_total'))['total'] or 0
-        
+
         monto_actual = caja.monto_inicial + ingresos_caja - egresos_caja
-        
+
         cajas_data.append({
             'id': caja.id,
             'cajero': caja.usuario.get_full_name() or caja.usuario.username,
@@ -107,25 +102,37 @@ def custom_dashboard(request):
 
         tendencia_data.append(float(total_dia))
 
-    # Distribución por Disciplina
+    # Distribución por Disciplina (CORREGIDO CON DEBUG)
     disciplinas_stats = Membresia.objects.filter(
-        fecha_vencimiento__gte=hoy, # <-- Membresías activas no vencidas (activas por fecha)
+        fecha_vencimiento__gte=hoy,
         miembro__estado='ACTIVA'
     ).values('disciplina__nombre').annotate(
         total=Count('id')
     ).order_by('-total')
 
-    disciplinas_labels = [d['disciplina__nombre'] for d in disciplinas_stats]
-    disciplinas_data = [d['total'] for d in disciplinas_stats]
+    # DEBUG: Descomenta la siguiente línea para ver datos en consola de Django
+    # print(f"DEBUG DISCIPLINAS: {list(disciplinas_stats)}")
+
+    # Manejo de datos vacíos para evitar errores en JavaScript
+    if disciplinas_stats.exists():
+        disciplinas_labels = [d['disciplina__nombre'] or 'Sin nombre' for d in disciplinas_stats]
+        disciplinas_data = [d['total'] for d in disciplinas_stats]
+        print("disciplinas_labels")
+        print(disciplinas_labels)
+        print("disciplinas_data")
+        print(disciplinas_data)
+    else:
+        # Si no hay datos, enviar arrays vacíos (el template mostrará mensaje)
+        disciplinas_labels = []
+        disciplinas_data = []
 
     # --- 5. TABLA DE VENCIMIENTOS CRÍTICOS ---
     miembros_criticos = Membresia.objects.filter(
         fecha_vencimiento__lte=hoy + timedelta(days=3),
-        fecha_vencimiento__gte=hoy, # <-- Solo las que aún no vencieron o vencen hoy
+        fecha_vencimiento__gte=hoy,
         miembro__estado='ACTIVA'
     ).select_related('miembro', 'disciplina').order_by('fecha_vencimiento')[:5]
 
-    # Calcular días restantes para la tabla
     for m in miembros_criticos:
         delta = (m.fecha_vencimiento - hoy).days
         if delta == 0:
@@ -140,26 +147,21 @@ def custom_dashboard(request):
 
     context = {
         'title': 'Dashboard Administrativo',
-        # Alertas
         'vencen_hoy': vencen_hoy,
         'vencen_manana': vencen_manana,
         'vencen_3_dias': vencen_3_dias,
         'ingreso_potencial': ingreso_potencial,
-        # KPIs
         'ingresos_hoy': ingresos_hoy,
         'ingresos_efectivo': ingresos_efectivo,
         'ingresos_otros': ingresos_otros,
         'total_activos': total_activos,
         'productos_bajo_stock': productos_bajo_stock,
-        # Cajas
         'total_cajas_abiertas': total_cajas_abiertas,
         'cajas_data': cajas_data,
-        # JSON para JS
         'tendencia_labels_json': json.dumps(tendencia_labels),
         'tendencia_data_json': json.dumps(tendencia_data),
         'disciplinas_labels_json': json.dumps(disciplinas_labels),
         'disciplinas_data_json': json.dumps(disciplinas_data),
-        # Tabla
         'miembros_criticos': miembros_criticos,
         'hoy': hoy,
     }
