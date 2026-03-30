@@ -18,8 +18,7 @@ def custom_dashboard(request):
     """
     Dashboard ejecutivo para rol Admin de YakaGym.
     """
-    hoy = timezone.now().date()
-    ahora = timezone.now()
+    hoy = timezone.localdate()
 
     # --- 1. MODO PÁNICO: Alertas de Vencimiento ---
     vencen_hoy = Membresia.objects.filter(
@@ -45,6 +44,9 @@ def custom_dashboard(request):
         estado=Transaccion.ESTADO_CONFIRMADA
     )
 
+    print("transacciones_hoy")
+    print(transacciones_hoy)
+
     ingresos_hoy = transacciones_hoy.filter(
         tipo__in=[Transaccion.TIPO_MEMBRESIA, Transaccion.TIPO_VENTA_PRODUCTO, Transaccion.TIPO_INGRESO_VARIO]
     ).aggregate(total=Sum('monto_total'))['total'] or 0
@@ -56,7 +58,15 @@ def custom_dashboard(request):
         metodo_pago=DetalleTransaccion.METODO_EFECTIVO
     ).aggregate(total=Sum('monto'))['total'] or 0
 
-    ingresos_otros = ingresos_hoy - ingresos_efectivo
+    ingresos_otros = ingresos_hoy - ingresos_efectivo;
+
+    print("ingresos_hoy")
+    print(ingresos_hoy)
+    print("ingresos_efectivo")
+    print(ingresos_efectivo)
+    print("ingresos_otros")
+    print(ingresos_otros)
+
     total_activos = Miembro.objects.filter(estado='ACTIVA').count()
     productos_bajo_stock = Producto.objects.filter(stock__lte=5).count()
 
