@@ -8,7 +8,7 @@ from django.http import HttpResponseRedirect
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 
-from .models import Caja, Transaccion, DetalleTransaccion
+from .models import Caja, Transaccion, DetalleTransaccion, Cuenta, Banco, CuentaMetodoPago, MovimientoCuenta, Transferencia
 from miembros.admin import YakaGymAdmin
 
 
@@ -20,6 +20,155 @@ class CerrarCajaForm(forms.Form):
         decimal_places=2,
         required=True
     )
+
+
+@admin.register(Banco)
+class BancoAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'codigo', 'es_tesoreria', 'activo')
+    list_filter = ('es_tesoreria', 'activo')
+    search_fields = ('nombre', 'codigo')
+
+
+class CuentaMetodoPagoInline(admin.TabularInline):
+    model = CuentaMetodoPago
+    extra = 0
+    readonly_fields = ('metodo_pago', 'saldo')
+    can_delete = False
+
+
+@admin.register(Cuenta)
+class CuentaAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'tipo', 'banco', 'responsable', 'saldo_total', 'es_principal')
+    list_filter = ('tipo', 'es_principal', 'banco')
+    search_fields = ('nombre', 'numero_cuenta')
+    readonly_fields = ('saldo_total',)
+    inlines = [CuentaMetodoPagoInline]
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('reporte-saldos/', self.admin_site.admin_view(self.reporte_saldos_view), name='tesoreria_cuenta_reporte_saldos'),
+        ]
+        return custom_urls + urls
+
+    def reporte_saldos_view(self, request):
+        if not request.user.is_superuser and not request.user.groups.filter(name='ADMINISTRADOR').exists():
+            from django.core.exceptions import PermissionDenied
+            raise PermissionDenied
+
+        # Filtros
+        desde = request.GET.get('desde')
+        hasta = request.GET.get('hasta')
+        cuenta_id = request.GET.get('cuenta')
+
+        movimientos = MovimientoCuenta.objects.all().order_by('-fecha')
+
+        if desde:
+            movimientos = movimientos.filter(fecha__date__gte=desde)
+        if hasta:
+            movimientos = movimientos.filter(fecha__date__lte=hasta)
+        if cuenta_id:
+            movimientos = movimientos.filter(cuenta_id=cuenta_id)
+
+        # Resumen de Saldos (In/Out del subset filtrado)
+        in_out_totals = movimientos.values('tipo').annotate(total=Sum('monto'))
+        total_in = sum(item['total'] for item in in_out_totals if item['tipo'] == MovimientoCuenta.TIPO_CREDITO)
+        total_out = sum(item['total'] for item in in_out_totals if item['tipo'] == MovimientoCuenta.TIPO_DEBITO)
+
+        # Limitar a 50 por defecto para la tabla de extractos
+        movimientos_extracto = movimientos[:50]
+
+        # Saldo Total de Tesorería Principal
+        tesoreria_principal = Cuenta.objects.filter(tipo=Cuenta.TIPO_TESORERIA, es_principal=True).first()
+        
+        # Listado de Cuentas Bancarias con saldos desglosados
+        cuentas_bancarias = Cuenta.objects.filter(tipo=Cuenta.TIPO_BANCARIA).prefetch_related('metodos_pago')
+        
+        # Suma de Fondos en Cajas Internas (Cajas activas)
+        cajas_activas = Caja.objects.filter(estado=Caja.ESTADO_ABIERTA)
+        # Sumamos el saldo de las cuentas asociadas a esas cajas
+        suma_fondos_cajas = 0
+        for caja in cajas_activas:
+            suma_fondos_cajas += caja.cuenta.saldo_total if caja.cuenta else 0
+        
+        # Suma Total Bancaria
+        suma_bancaria = cuentas_bancarias.aggregate(total=Sum('saldo_total'))['total'] or 0
+
+        # Todas las cuentas para el filtro
+        todas_las_cuentas = Cuenta.objects.all()
+
+        context = {
+            **self.admin_site.each_context(request),
+            'title': 'Reporte de Saldos Globales',
+            'tesoreria_principal': tesoreria_principal,
+            'cuentas_bancarias': cuentas_bancarias,
+            'suma_fondos_cajas': suma_fondos_cajas,
+            'suma_bancaria': suma_bancaria,
+            'cajas_activas': cajas_activas,
+            'movimientos': movimientos_extracto,
+            'total_in': total_in,
+            'total_out': total_out,
+            'todas_las_cuentas': todas_las_cuentas,
+            'filtros': {
+                'desde': desde,
+                'hasta': hasta,
+                'cuenta': cuenta_id,
+            }
+        }
+        return render(request, 'admin/tesoreria/reporte_cuentas.html', context)
+
+
+@admin.register(CuentaMetodoPago)
+class CuentaMetodoPagoAdmin(admin.ModelAdmin):
+    list_display = ('cuenta', 'metodo_pago', 'saldo')
+    list_filter = ('metodo_pago', 'cuenta')
+    readonly_fields = ('saldo',)
+
+
+@admin.register(MovimientoCuenta)
+class MovimientoCuentaAdmin(admin.ModelAdmin):
+    list_display = ('fecha', 'cuenta', 'tipo', 'monto', 'metodo_pago', 'origen', 'estado', 'usuario_registro')
+    list_filter = ('cuenta', 'tipo', 'metodo_pago', 'origen', 'estado', 'fecha')
+    search_fields = ('referencia', 'cuenta__nombre')
+    
+    def get_readonly_fields(self, request, obj=None):
+        if obj and obj.estado == MovimientoCuenta.ESTADO_CONFIRMADO:
+            return [field.name for field in self.model._meta.fields]
+        return ['usuario_registro', 'fecha']
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.usuario_registro = request.user
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(Transferencia)
+class TransferenciaAdmin(admin.ModelAdmin):
+    list_display = ('id', 'origen', 'destino', 'monto', 'metodo_pago', 'estado', 'solicitado_por', 'fecha_solicitud')
+    list_filter = ('estado', 'metodo_pago', 'origen', 'destino')
+    readonly_fields = ('solicitado_por', 'fecha_solicitud', 'autorizado_por', 'fecha_autorizacion', 'movimiento_origen', 'movimiento_destino')
+    actions = ['autorizar_transferencia_action']
+
+    @admin.action(description="Autorizar transferencias seleccionadas")
+    def autorizar_transferencia_action(self, request, queryset):
+        count = 0
+        for transferencia in queryset:
+            if transferencia.estado == Transferencia.ESTADO_PENDIENTE:
+                try:
+                    transferencia.autorizar(request.user)
+                    count += 1
+                except ValidationError as e:
+                    self.message_user(request, f"Error en transferencia #{transferencia.id}: {str(e)}", level=messages.ERROR)
+            else:
+                self.message_user(request, f"La transferencia #{transferencia.id} no está pendiente.", level=messages.WARNING)
+        
+        if count > 0:
+            self.message_user(request, f"{count} transferencia(s) autorizada(s) con éxito.")
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.solicitado_por = request.user
+        super().save_model(request, obj, form, change)
 
 # --- Clases para Inlines ---
 class DetalleTransaccionInline(admin.TabularInline):
@@ -42,14 +191,14 @@ class DetalleTransaccionInline(admin.TabularInline):
 @admin.register(Caja)
 class CajaAdmin(admin.ModelAdmin):
     change_form_template = 'admin/tesoreria/caja/change_form.html'
-    list_display = ('usuario', 'fecha_apertura', 'fecha_cierre', 'monto_inicial', 'monto_final_teorico', 'estado', 'diferencia')
+    list_display = ('usuario', 'cuenta', 'fecha_apertura', 'fecha_cierre', 'monto_inicial', 'monto_final_teorico', 'estado', 'diferencia')
     list_filter = ('estado', 'usuario')
-    search_fields = ('usuario__username',)
+    search_fields = ('usuario__username', 'cuenta__nombre')
 
     def get_fields(self, request, obj=None):
         if obj is None:
-            return ('monto_inicial',)
-        return ('usuario', 'fecha_apertura', 'fecha_cierre', 'monto_inicial', 
+            return ('monto_inicial', 'cuenta')
+        return ('usuario', 'cuenta', 'fecha_apertura', 'fecha_cierre', 'monto_inicial', 
                 'monto_final_teorico', 'monto_final_real', 'diferencia', 'estado')
 
     def get_readonly_fields(self, request, obj=None):
@@ -57,13 +206,29 @@ class CajaAdmin(admin.ModelAdmin):
             return ['usuario', 'fecha_apertura', 'fecha_cierre', 'monto_final_teorico', 'monto_final_real', 'diferencia', 'estado']
         return [field.name for field in self.model._meta.fields if field.name != 'id']
 
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "cuenta":
+            # Solo mostrar cuentas internas del usuario actual al crear
+            kwargs["queryset"] = Cuenta.objects.filter(tipo=Cuenta.TIPO_INTERNA, responsable=request.user)
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
     def save_model(self, request, obj, form, change):
         if not change:
             caja_abierta_existente = Caja.objects.filter(usuario=request.user, estado=Caja.ESTADO_ABIERTA).first()
             if caja_abierta_existente:
                 messages.error(request, f"Acción no permitida: Ya tienes una caja abierta ({caja_abierta_existente}). Por favor, ciérrala primero.")
                 raise ValidationError(f"Acción no permitida: Ya tienes una caja abierta ({caja_abierta_existente}). Por favor, ciérrala primero.")
+            
             obj.usuario = request.user
+            
+            # Asignación automática de cuenta si no se seleccionó
+            if not getattr(obj, 'cuenta', None):
+                cuenta_interna = Cuenta.objects.filter(tipo=Cuenta.TIPO_INTERNA, responsable=request.user).first()
+                if not cuenta_interna:
+                    error_msg = "No tienes una cuenta interna asignada. Contacta al administrador."
+                    messages.error(request, error_msg)
+                    raise ValidationError(error_msg)
+                obj.cuenta = cuenta_interna
         
         super().save_model(request, obj, form, change)
         
@@ -159,6 +324,20 @@ class TransaccionAdmin(YakaGymAdmin):
     list_filter = ('tipo', 'caja', 'usuario', 'miembro', 'estado')
     search_fields = ('miembro__nombre', 'miembro__apellido', 'caja__usuario__username', 'observacion')
     inlines = [DetalleTransaccionInline]
+    actions = ['anular_transaccion_action']
+
+    @admin.action(description="Anular transacciones seleccionadas (genera reversión contable)")
+    def anular_transaccion_action(self, request, queryset):
+        count = 0
+        for transaccion in queryset:
+            if transaccion.estado == Transaccion.ESTADO_CONFIRMADA:
+                transaccion.anular(request.user)
+                count += 1
+            else:
+                self.message_user(request, f"La transacción #{transaccion.id} ya está anulada.", level=messages.WARNING)
+        
+        if count > 0:
+            self.message_user(request, f"{count} transacción(es) anulada(s) con éxito.")
     
     class Media:
         js = ('tesoreria/js/transaccion_total.js',)
