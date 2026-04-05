@@ -144,7 +144,7 @@ class MovimientoCuentaAdmin(admin.ModelAdmin):
 
 @admin.register(Transferencia)
 class TransferenciaAdmin(admin.ModelAdmin):
-    list_display = ('id', 'origen', 'destino', 'monto', 'metodo_pago', 'estado', 'solicitado_por', 'fecha_solicitud')
+    list_display = ('id', 'origen', 'destino', 'monto', 'metodo_pago', 'referencia', 'estado', 'solicitado_por', 'fecha_solicitud')
     list_filter = ('estado', 'metodo_pago', 'origen', 'destino')
     readonly_fields = ('solicitado_por', 'fecha_solicitud', 'autorizado_por', 'fecha_autorizacion', 'movimiento_origen', 'movimiento_destino')
     actions = ['autorizar_transferencia_action']

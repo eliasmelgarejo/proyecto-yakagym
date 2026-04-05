@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.db.models import Sum
@@ -94,12 +94,50 @@ class Caja(models.Model):
                 self.fecha_cierre = timezone.now()
             
             # REQ-04: El monto teórico ahora se toma del saldo total de la cuenta
-            self.monto_final_teorico = self.cuenta.saldo_total
+            if self.cuenta:
+                self.monto_final_teorico = self.cuenta.saldo_total
+            else:
+                # Fallback para cajas antiguas sin cuenta: usar el campo deprecado si existe
+                self.monto_final_teorico = self.monto_final_teorico or 0
             
             if self.monto_final_real is not None:
                 self.diferencia = self.monto_final_real - self.monto_final_teorico
             else:
                 self.diferencia = 0
+
+        # Lógica de CONTABILIZACIÓN (Transferencia de fondos de Caja a Cuentas Destino)
+        if self.estado == self.ESTADO_CONTABILIZADA and (not original_caja or original_caja.estado != self.ESTADO_CONTABILIZADA):
+            if not original_caja or original_caja.estado != self.ESTADO_CERRADA:
+                raise ValidationError("La caja debe estar CERRADA antes de poder CONTABILIZARLA.")
+            
+            # Ejecutar transferencias de saldos (con saldo > 0)
+            saldos = self.cuenta.metodos_pago.filter(saldo__gt=0)
+            
+            if not saldos.exists():
+                # Si no hay saldo, solo permitimos pasar de estado pero no hay transferencias que hacer.
+                pass
+            else:
+                for cmp in saldos:
+                    try:
+                        config = MetodoPagoConfig.objects.get(metodo_pago=cmp.metodo_pago)
+                    except MetodoPagoConfig.DoesNotExist:
+                        raise ValidationError(f"No se puede contabilizar: El método '{cmp.get_metodo_pago_display()}' no tiene una cuenta destino configurada.")
+                    
+                    # Realizar transferencia de fondos mediante el modelo Transferencia
+                    with transaction.atomic():
+                        from .models import Transferencia
+                        transferencia = Transferencia.objects.create(
+                            origen=self.cuenta,
+                            destino=config.cuenta_destino,
+                            monto=cmp.saldo,
+                            metodo_pago=cmp.metodo_pago,
+                            estado=Transferencia.ESTADO_PENDIENTE,
+                            solicitado_por=self.usuario, # El cajero solicita el retiro (en el registro)
+                            referencia=f"Liquidación Caja {self.id}: {cmp.get_metodo_pago_display()}"
+                        )
+                        # El administrador está guardando este estado, así que la transferencia se autoriza de inmediato
+                        # Usamos self.usuario como referencia de autorizador para este proceso automático
+                        transferencia.autorizar(self.usuario)
 
         super().save(*args, **kwargs)
 
@@ -289,6 +327,32 @@ class CuentaMetodoPago(models.Model):
         return f"{self.cuenta.nombre} - {self.get_metodo_pago_display()}: {self.saldo}"
 
 
+class MetodoPagoConfig(models.Model):
+    """
+    REQ: Configuración obligatoria del destino de fondos por método de pago.
+    """
+    metodo_pago = models.CharField(
+        max_length=20, 
+        choices=CuentaMetodoPago.METODO_PAGO_CHOICES, 
+        unique=True,
+        verbose_name="Método de Pago"
+    )
+    cuenta_destino = models.ForeignKey(
+        Cuenta, 
+        on_delete=models.PROTECT, 
+        related_name='configuraciones_destino',
+        verbose_name="Cuenta Destino",
+        help_text="Cuenta donde se depositarán los fondos al contabilizar la caja."
+    )
+
+    class Meta:
+        verbose_name = "Configuración de Destino de Pago"
+        verbose_name_plural = "Configuraciones de Destinos de Pago"
+
+    def __str__(self):
+        return f"{self.get_metodo_pago_display()} -> {self.cuenta_destino.nombre}"
+
+
 class MovimientoCuenta(models.Model):
     TIPO_CREDITO = 'CREDITO' # Entrada
     TIPO_DEBITO = 'DEBITO'   # Salida
@@ -385,6 +449,7 @@ class Transferencia(models.Model):
     autorizado_por = models.ForeignKey(User, on_delete=models.PROTECT, related_name='transferencias_autorizadas', null=True, blank=True)
     fecha_solicitud = models.DateTimeField(auto_now_add=True)
     fecha_autorizacion = models.DateTimeField(null=True, blank=True)
+    referencia = models.CharField(max_length=150, blank=True, null=True)
     
     # R-MV-02: Las transferencias deben vincular dos movimientos de cuenta
     movimiento_origen = models.OneToOneField(MovimientoCuenta, on_delete=models.SET_NULL, null=True, blank=True, related_name='transferencia_de_salida')
@@ -405,6 +470,9 @@ class Transferencia(models.Model):
         self.autorizado_por = usuario
         self.fecha_autorizacion = timezone.now()
         
+        # REQ: Usar la referencia de la transferencia o un fallback descriptivo
+        ref_movimiento = self.referencia or f"Transferencia #{self.id}"
+
         # Crear movimientos de cuenta
         mov_origen = MovimientoCuenta.objects.create(
             cuenta=self.origen,
@@ -412,7 +480,7 @@ class Transferencia(models.Model):
             monto=self.monto,
             metodo_pago=self.metodo_pago,
             origen=MovimientoCuenta.ORIGEN_TRANSFERENCIA,
-            referencia=f"Transferencia #{self.id}",
+            referencia=ref_movimiento,
             estado=MovimientoCuenta.ESTADO_CONFIRMADO,
             usuario_registro=usuario
         )
@@ -423,7 +491,7 @@ class Transferencia(models.Model):
             monto=self.monto,
             metodo_pago=self.metodo_pago,
             origen=MovimientoCuenta.ORIGEN_TRANSFERENCIA,
-            referencia=f"Transferencia #{self.id}",
+            referencia=ref_movimiento,
             estado=MovimientoCuenta.ESTADO_CONFIRMADO,
             usuario_registro=usuario
         )

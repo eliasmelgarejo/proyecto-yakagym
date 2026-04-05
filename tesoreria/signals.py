@@ -14,18 +14,23 @@ def crear_movimiento_por_pago(sender, instance, created, **kwargs):
         caja = transaccion.caja
         cuenta_destino = None
 
-        # Lógica de Direccionamiento de Fondos (REQ-02)
+        # Lógica de Direccionamiento de Fondos (REQ-02 ACTUALIZADA)
         if instance.metodo_pago == DetalleTransaccion.METODO_EFECTIVO:
             # El efectivo siempre va a la cuenta INTERNA del cajero (la de la caja)
             cuenta_destino = caja.cuenta
         else:
-            # Resto (Tarjeta, QR, Transferencia) va a la Cuenta BANCARIA configurada como principal
-            from .models import Cuenta
-            cuenta_destino = Cuenta.objects.filter(tipo=Cuenta.TIPO_BANCARIA, es_principal=True).first()
-            if not cuenta_destino:
-                # Fallback: primera cuenta bancaria o tesorería principal
-                cuenta_destino = Cuenta.objects.filter(tipo=Cuenta.TIPO_BANCARIA).first() or \
-                                 Cuenta.objects.filter(tipo=Cuenta.TIPO_TESORERIA, es_principal=True).first()
+            # Resto (Tarjeta, QR, Transferencia) usa MetodoPagoConfig (REQ-05)
+            from .models import MetodoPagoConfig
+            try:
+                config = MetodoPagoConfig.objects.get(metodo_pago=instance.metodo_pago)
+                cuenta_destino = config.cuenta_destino
+            except MetodoPagoConfig.DoesNotExist:
+                # Fallback de seguridad (solo si no hay configuración) a la Cuenta BANCARIA principal
+                from .models import Cuenta
+                cuenta_destino = Cuenta.objects.filter(tipo=Cuenta.TIPO_BANCARIA, es_principal=True).first()
+                if not cuenta_destino:
+                    cuenta_destino = Cuenta.objects.filter(tipo=Cuenta.TIPO_BANCARIA).first() or \
+                                     Cuenta.objects.filter(tipo=Cuenta.TIPO_TESORERIA, es_principal=True).first()
 
         if cuenta_destino:
             with transaction.atomic():
