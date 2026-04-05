@@ -320,6 +320,38 @@ class CajaAdmin(admin.ModelAdmin):
 
 @admin.register(Transaccion)
 class TransaccionAdmin(YakaGymAdmin):
+    class TransaccionForm(forms.ModelForm):
+        class Meta:
+            model = Transaccion
+            fields = '__all__'
+
+        def __init__(self, *args, **kwargs):
+            self.request = kwargs.pop('request', None)
+            super().__init__(*args, **kwargs)
+            if 'tipo' in self.fields:
+                self.fields['tipo'].choices = [
+                    choice for choice in self.fields['tipo'].choices 
+                    if choice[0] in [Transaccion.TIPO_INGRESO_VARIO, Transaccion.TIPO_EGRESO_VARIO]
+                ]
+            if not self.instance.pk:
+                if 'monto_total' in self.fields:
+                    self.fields['monto_total'].widget = forms.HiddenInput()
+                if 'miembro' in self.fields:
+                    self.fields['miembro'].required = False
+                    self.fields['miembro'].widget = forms.HiddenInput()
+
+        def clean(self):
+            cleaned_data = super().clean()
+            if not self.instance.pk:
+                if not self.request:
+                    return cleaned_data
+                try:
+                    Caja.objects.get(usuario=self.request.user, estado=Caja.ESTADO_ABIERTA)
+                except Caja.DoesNotExist:
+                    raise forms.ValidationError("No tienes una caja abierta para registrar esta transacción.")
+            return cleaned_data
+
+    form = TransaccionForm
     list_display = ('id', 'caja', 'usuario', 'miembro', 'tipo', 'monto_total', 'fecha_hora', 'estado', 'link_venta', 'link_membresia')
     list_filter = ('tipo', 'caja', 'usuario', 'miembro', 'estado')
     search_fields = ('miembro__nombre', 'miembro__apellido', 'caja__usuario__username', 'observacion')
@@ -344,7 +376,7 @@ class TransaccionAdmin(YakaGymAdmin):
 
     def get_fieldsets(self, request, obj=None):
         return (
-            (None, {'fields': ('tipo', 'observacion', 'monto_total_visual', 'monto_total')}),
+            (None, {'fields': ('tipo', 'miembro', 'observacion', 'monto_total_visual', 'monto_total')}),
             ('Vínculos', {'fields': ('link_venta', 'link_membresia'), 'classes': ('collapse',)}),
         )
 
@@ -363,21 +395,13 @@ class TransaccionAdmin(YakaGymAdmin):
         return "-"
 
     def get_form(self, request, obj=None, **kwargs):
-        form = super().get_form(request, obj, **kwargs)
-        if 'tipo' in form.base_fields:
-            # Permitir solo INGRESO_VARIO y EGRESO_VARIO
-            form.base_fields['tipo'].choices = [
-                choice for choice in form.base_fields['tipo'].choices 
-                if choice[0] in [Transaccion.TIPO_INGRESO_VARIO, Transaccion.TIPO_EGRESO_VARIO]
-            ]
-        if obj is None and 'monto_total' in form.base_fields:
-            form.base_fields['monto_total'].widget = forms.HiddenInput()
-        
-        if 'miembro' in form.base_fields:
-            form.base_fields['miembro'].required = False
-            form.base_fields['miembro'].widget = forms.HiddenInput()
-        
-        return form
+        # Pass the request to the form's __init__ via a dynamic subclass
+        FormClass = super().get_form(request, obj, **kwargs)
+        class RequestForm(FormClass):
+            def __init__(inner_self, *args, **inner_kwargs):
+                inner_kwargs.update({'request': request})
+                super().__init__(*args, **inner_kwargs)
+        return RequestForm
 
     def get_readonly_fields(self, request, obj=None):
         readonly = ['monto_total_visual', 'link_venta', 'link_membresia']
@@ -409,10 +433,11 @@ class TransaccionAdmin(YakaGymAdmin):
                 obj.caja = caja_abierta
                 obj.usuario = request.user
             except Caja.DoesNotExist:
-                messages.error(request, "Acción no permitida: No tienes una caja abierta para registrar esta transacción.")
-                raise ValidationError("No tienes una caja abierta para registrar esta transacción.")
+                # Ya validado en el form.clean, pero mantenemos por seguridad sin el raise que rompe el admin
+                pass
         
         super().save_model(request, obj, form, change)
+
 
     def save_formset(self, request, form, formset, change):
         super().save_formset(request, form, formset, change)
